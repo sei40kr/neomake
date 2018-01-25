@@ -48,6 +48,8 @@ endfunction
 let s:unset_list = []
 let s:unset_dict = {}
 
+let s:is_testing = exists('g:neomake_test_messages')
+
 let s:async = has('nvim')
             \ || has('channel') && has('job') && has('patch-8.0.0027')
 function! neomake#has_async_support() abort
@@ -84,7 +86,7 @@ endfunction
 
 " neomake#GetMakeOptions: not documented, only used internally for now.
 " More lax when not being used in tests to avoid errors, but fail during tests.
-if exists('g:neomake_test_messages')  " is_testing
+if s:is_testing
     function! neomake#GetMakeOptions(...) abort
         let make_id = a:0 ? a:1 : s:make_id
         try
@@ -1360,7 +1362,6 @@ function! s:AddExprCallback(jobinfo, prev_list) abort
     endif
 
     if !empty(changed_entries) || !empty(removed_entries)
-        let list = file_mode ? getloclist(0) : getqflist()
         if !empty(changed_entries)
             for k in keys(changed_entries)
                 let list[k] = changed_entries[k]
@@ -1375,6 +1376,16 @@ function! s:AddExprCallback(jobinfo, prev_list) abort
             call setloclist(0, list, 'r')
         else
             call setqflist(list, 'r')
+        endif
+
+        " Assert: the list is what we expect (without fetching it anew).
+        " 953938ca indicates that for changed/removed entries it needs to be
+        " refetched, but there is no failing test.
+        if s:is_testing
+            let new_list = file_mode ? getloclist(0) : getqflist()
+            let filter_keys = ['maker_name', 'length']
+            let comp_list = map(deepcopy(list), "filter(v:val, 'index(filter_keys, v:key) == -1')")
+            AssertEqual comp_list, new_list
         endif
     endif
 
@@ -1468,7 +1479,7 @@ function! s:clean_make_info(make_info, ...) abort
     endif
 
     " Assert: there should be no queued actions for jobs or makes.
-    if exists('g:neomake_test_messages')  " is_testing
+    if s:is_testing
         let queued = []
         for [_, v] in s:action_queue
             if has_key(v[1][0], 'make_id')

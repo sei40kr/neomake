@@ -1381,11 +1381,13 @@ function! s:AddExprCallback(jobinfo, prev_list) abort
         " Assert: the list is what we expect (without fetching it anew).
         " 953938ca indicates that for changed/removed entries it needs to be
         " refetched, but there is no failing test.
-        if s:is_testing
-            let new_list = file_mode ? getloclist(0) : getqflist()
+        " Only does this for when 'valid' gets not changed when setting the
+        " list (patch-8.0.8580).
+        if s:is_testing && has('patch-8.0.0580')
             let filter_keys = ['maker_name', 'length']
             let comp_list = map(deepcopy(list), "filter(v:val, 'index(filter_keys, v:key) == -1')")
-            AssertEqual comp_list, new_list
+            let new_list = file_mode ? getloclist(0) : getqflist()
+            call vader#assert#equal(comp_list, new_list)
         endif
     endif
 
